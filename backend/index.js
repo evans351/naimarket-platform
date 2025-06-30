@@ -1,5 +1,7 @@
 const express = require('express');
 const cors = require('cors');
+const bcrypt = require('bcrypt');
+const db = require('./db'); // Make sure db.js exports the MySQL connection
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -8,48 +10,89 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
-// Sample route
+
+// Routes
+const userRoutes = require('./routes/users');
+app.use('/api/users', userRoutes);
+
+const serviceRoutes = require('./routes/services'); // ✅ import routes
+app.use('/api/services', serviceRoutes); // ✅ mount routes
+
+// Health check route
 app.get('/', (req, res) => {
   res.send('NaiMarket API is running!');
 });
 
-// ✅ Vendor login route
-app.post('/api/vendor/login', (req, res) => {
+// ✅ Improved Login Route with debug logs
+app.post('/api/login', (req, res) => {
   const { email, password } = req.body;
-  console.log('Vendor login attempt:', email, password);
+  console.log('🔐 Login attempt with email:', email);
 
-  if (email === 'vendor@example.com' && password === '123456') {
-    res.json({ message: 'Login successful' });
-  } else {
-    res.status(401).json({ message: 'Invalid credentials' });
-  }
-});
+  const sql = 'SELECT * FROM users WHERE email = ?';
 
-// ✅ Customer login route
-app.post('/api/customer/login', (req, res) => {
-  const { email, password } = req.body;
-  console.log('Customer login attempt:', email, password);
+  db.query(sql, [email], async (err, results) => {
+    if (err) {
+      console.error('❌ DB Error:', err);
+      return res.status(500).json({ message: 'Database error' });
+    }
 
-  if (email === 'customer@example.com' && password === '654321') {
-    res.json({ message: 'Login successful' });
-  } else {
-    res.status(401).json({ message: 'Invalid customer credentials' });
-  }
+    if (results.length === 0) {
+      console.warn('⚠️ No user found with email:', email);
+      return res.status(401).json({ message: 'Invalid credentials (email not found)' });
+    }
+
+    const user = results[0];
+    console.log('✅ User found:', user);
+
+    try {
+      const isMatch = await bcrypt.compare(password, user.password);
+      console.log('🔍 bcrypt.compare result:', isMatch);
+
+      if (!isMatch) {
+        return res.status(401).json({ message: 'Invalid credentials (password mismatch)' });
+      }
+
+      // Successful login
+      res.json({
+        message: 'Login successful',
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role
+        }
+      });
+    } catch (compareErr) {
+      console.error('❌ bcrypt error:', compareErr);
+      return res.status(500).json({ message: 'Server error during password check' });
+    }
+  });
 });
 
 // ✅ Registration route
-app.post('/api/register', (req, res) => {
+app.post('/api/register', async (req, res) => {
   const { name, email, password, role } = req.body;
-  console.log(`New ${role} registration:`, name, email);
 
-  // Just simulate success for now
-  res.status(201).json({ message: `${role} registered successfully` });
+  if (!name || !email || !password || !role) {
+    return res.status(400).json({ message: 'All fields are required' });
+  }
+
+  const hashedPassword = await bcrypt.hash(password, 10);
+  const sql = 'INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)';
+
+  db.query(sql, [name, email, hashedPassword, role], (err) => {
+    if (err) {
+      console.error('Registration error:', err);
+      return res.status(500).json({ message: 'Error registering user' });
+    }
+
+    res.status(201).json({ message: `${role} registered successfully` });
+  });
 });
 
-// ✅ In-memory vendor service storage
+// ✅ Vendor services (in-memory)
 const vendorServices = [];
 
-// ✅ Vendor adds a new service
 app.post('/api/vendor/services', (req, res) => {
   const service = req.body;
   vendorServices.push(service);
@@ -57,28 +100,18 @@ app.post('/api/vendor/services', (req, res) => {
   res.status(201).json({ message: 'Service added successfully' });
 });
 
-// ✅ Customer fetches available services
 app.get('/api/services', (req, res) => {
   res.json(vendorServices);
 });
 
-// ✅ Vendor logout
-app.post('/api/vendor/logout', (req, res) => {
-  console.log('Vendor logout request received');
-  res.json({ message: 'Vendor logged out successfully' });
+// ✅ Logout (dummy)
+app.post('/api/logout', (req, res) => {
+  res.json({ message: 'User logged out successfully' });
 });
-
-// ✅ Customer logout
-app.post('/api/customer/logout', (req, res) => {
-  console.log('Customer logout request received');
-  res.json({ message: 'Customer logged out successfully' });
-});
-
 
 // ✅ Start server
 app.listen(PORT, () => {
-  console.log(`Server is running on http://localhost:${PORT}`);
+  console.log(`🚀 Server is running on http://localhost:${PORT}`);
 });
-
 
 
