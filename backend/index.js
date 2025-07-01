@@ -18,6 +18,12 @@ app.use('/api/users', userRoutes);
 const serviceRoutes = require('./routes/services'); // ✅ import routes
 app.use('/api/services', serviceRoutes); // ✅ mount routes
 
+const vendorRoutes = require('./routes/vendor');
+app.use('/api/vendors', vendorRoutes);
+
+const categoryRoutes = require('./routes/categories');
+app.use('/api/categories', categoryRoutes);
+
 // Health check route
 app.get('/', (req, res) => {
   res.send('NaiMarket API is running!');
