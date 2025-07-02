@@ -15,5 +15,11 @@ router.get('/', (req, res) => {
   });
 });
 
+// POST /api/vendor/logout - dummy logout endpoint
+router.post('/logout', (req, res) => {
+  res.status(200).json({ message: 'Vendor logged out successfully' });
+});
+
+
 module.exports = router;
 

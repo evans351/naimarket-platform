@@ -1,7 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const bcrypt = require('bcrypt');
-const db = require('./db'); // Make sure db.js exports the MySQL connection
+const db = require('./db');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -10,26 +10,26 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
-
-// Routes
+// ✅ Route Imports
 const userRoutes = require('./routes/users');
-app.use('/api/users', userRoutes);
-
-const serviceRoutes = require('./routes/services'); // ✅ import routes
-app.use('/api/services', serviceRoutes); // ✅ mount routes
-
+const serviceRoutes = require('./routes/services');
 const vendorRoutes = require('./routes/vendor');
-app.use('/api/vendors', vendorRoutes);
-
 const categoryRoutes = require('./routes/categories');
-app.use('/api/categories', categoryRoutes);
+const orderRoutes = require('./routes/orders');
 
-// Health check route
+// ✅ Mount Routes
+app.use('/api/users', userRoutes);
+app.use('/api/services', serviceRoutes);  // ✅ MySQL-based services
+app.use('/api/vendors', vendorRoutes);
+app.use('/api/categories', categoryRoutes);
+app.use('/api/orders', orderRoutes);
+
+// ✅ Health Check
 app.get('/', (req, res) => {
   res.send('NaiMarket API is running!');
 });
 
-// ✅ Improved Login Route with debug logs
+// ✅ Login
 app.post('/api/login', (req, res) => {
   const { email, password } = req.body;
   console.log('🔐 Login attempt with email:', email);
@@ -43,39 +43,29 @@ app.post('/api/login', (req, res) => {
     }
 
     if (results.length === 0) {
-      console.warn('⚠️ No user found with email:', email);
       return res.status(401).json({ message: 'Invalid credentials (email not found)' });
     }
 
     const user = results[0];
-    console.log('✅ User found:', user);
+    const isMatch = await bcrypt.compare(password, user.password);
 
-    try {
-      const isMatch = await bcrypt.compare(password, user.password);
-      console.log('🔍 bcrypt.compare result:', isMatch);
-
-      if (!isMatch) {
-        return res.status(401).json({ message: 'Invalid credentials (password mismatch)' });
-      }
-
-      // Successful login
-      res.json({
-        message: 'Login successful',
-        user: {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          role: user.role
-        }
-      });
-    } catch (compareErr) {
-      console.error('❌ bcrypt error:', compareErr);
-      return res.status(500).json({ message: 'Server error during password check' });
+    if (!isMatch) {
+      return res.status(401).json({ message: 'Invalid credentials (password mismatch)' });
     }
+
+    res.json({
+      message: 'Login successful',
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role
+      }
+    });
   });
 });
 
-// ✅ Registration route
+// ✅ Register
 app.post('/api/register', async (req, res) => {
   const { name, email, password, role } = req.body;
 
@@ -96,21 +86,7 @@ app.post('/api/register', async (req, res) => {
   });
 });
 
-// ✅ Vendor services (in-memory)
-const vendorServices = [];
-
-app.post('/api/vendor/services', (req, res) => {
-  const service = req.body;
-  vendorServices.push(service);
-  console.log('New service added:', service);
-  res.status(201).json({ message: 'Service added successfully' });
-});
-
-app.get('/api/services', (req, res) => {
-  res.json(vendorServices);
-});
-
-// ✅ Logout (dummy)
+// ✅ Dummy logout
 app.post('/api/logout', (req, res) => {
   res.json({ message: 'User logged out successfully' });
 });
